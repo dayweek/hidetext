@@ -1,7 +1,11 @@
 function [decoded] = decode(Input)
 %
-% - Input ... an input image matrix
+% - Input ... string to 8-bit BMP file
+% - decoded .. retrieved text
+% if it is not possible to retrive the text, an error is printed
 % 4x4 blocks will be processed
+Input = double(imread(Input));
+
 block_size = [4 4];
 
 % construct matrices Q,B for intDCT
@@ -16,9 +20,6 @@ bb = b*b;
 Q = [aa ab aa ab; ab bb ab bb; aa ab aa ab; ab bb ab bb];
 
 corrupted = 0; % indicates wheter we can retrieve the message
-
-% convert image into matrix
-Input = double(Input);
 
 % image size
 size_x = size(Input,2);
@@ -89,7 +90,7 @@ most_frequent_difference = sorted(1,:); % [a,b] where a is difference, b is numb
 S = [];
 ii = 1;
 for i=3:most_frequent_difference(1):(length(ordinals) - most_frequent_difference(1))
-    S(ii,:) = ordinals(i:(i+most_frequent_difference(1)-2));
+    S(ii,:) = ordinals(i:(i+most_frequent_difference(1)-3));
     ii = ii + 1;
 end
 
