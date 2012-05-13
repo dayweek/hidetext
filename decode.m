@@ -1,9 +1,10 @@
-function decoded = decode(Input)
+function [decoded] = decode(Input)
 %
 % - Input ... an input image matrix
-
+% 4x4 blocks will be processed
 block_size = [4 4];
 
+% construct matrices Q,B for intDCT
 a = 1/2;
 b = sqrt(a)*cos(pi/8);
 c = sqrt(a)*cos(3*pi/8);
@@ -13,6 +14,9 @@ aa = a*a;
 ab = a*b;
 bb = b*b;
 Q = [aa ab aa ab; ab bb ab bb; aa ab aa ab; ab bb ab bb];
+
+corrupted = 0; % indicates wheter we can retrieve the message
+
 % convert image into matrix
 Input = double(Input);
 
@@ -21,9 +25,9 @@ size_x = size(Input,2);
 size_y = size(Input,1);
 
 % number of blocks
-count_x = ceil(size_x / block_size(1));
-count_y = ceil(size_y / block_size(2));
-fullmessage = [];
+count_x = floor(size_x / block_size(1));
+count_y = floor(size_y / block_size(2));
+coeffs = []; % selected coefficiens from all blocks will be saved here
 for x_th=1:count_x,       
     for y_th=1:count_y,
         % find the area of the current block
@@ -38,70 +42,74 @@ for x_th=1:count_x,
         dct_block = round((B*current_block*B').*Q);
         
         zz = zigzag(dct_block);
-        if(length(zz) == 16)
-          msg = zz(end-3:end);
-          fullmessage = [fullmessage msg];
-        end
+        msg = zz(end-3:end);
+        coeffs = [coeffs msg];
     end
 end
-% -1,0,1,2,3 -> 0,1
-fullmessage = fullmessage > 1;
 
-% decode fullmessage to decimal values
+% transform -1,0,1,2,3,4 to 0,1
+bitcoeffs = coeffs > 1;
 
-decoded = [];
+% decode bits to decimal values of ASCII characters
+ordinals = []; 
 ii = 1;
-for i=1:8:(length(fullmessage))
-    decoded = [decoded, (bin2dec(num2str(fullmessage(i:(i+7)))))];
+for i=1:8:(length(bitcoeffs)-8)
+    ordinals = [ordinals, (bin2dec(num2str(bitcoeffs(i:(i+7)))))];
     ii = ii + 1;
 end
 
 % find occurences (indices) of the delimiter
 
-del_indices = [];
-for i=1:(length(decoded))
-  if(decoded(i) == 0 && i < length(decoded))
-      if(decoded(i+1) == 255)
-          del_indices = [del_indices i];
+delimiters = [];
+for i=1:(length(ordinals))
+  if(ordinals(i) == 0 && i < length(ordinals))
+      if(ordinals(i+1) == 255)
+          delimiters = [delimiters i];
       end
   end
 end
 
-% find most frequent difference between dilimiters
+if(length(delimiters) < 1)
+    corrupted = 1;
+    error('Message cannot be correctly retrieved. No delimiters were found');
+end
+% find most frequent difference between dilimiters. This indicates the
+% length of one sentence in the message
 
-shift_indices =  [ 0 del_indices ];
+shift_delimiters =  [ 0 delimiters ];
 % differences between delimiters
-differences = del_indices - shift_indices(1:end-1);
-sorted = sortrows([(0:100)', histc(differences', 0:100)], -2);
-most_frequent_diff = sorted(1,:); % [a,b] where a is difference, b is number of occurences
+delimiters_differences = delimiters - shift_delimiters(1:end-1);
+uniq = unique(delimiters_differences);
+sorted = sortrows([uniq', histc(delimiters_differences', uniq)], -2);
+most_frequent_difference = sorted(1,:); % [a,b] where a is difference, b is number of occurences
 
 % split decoded message to array of sentences (numbers)
 % result is a matrix with rows as sentences
 
 S = [];
 ii = 1;
-for i=3:most_frequent_diff(1):(length(decoded) - most_frequent_diff(1))
-    S(ii,:) = decoded(i:(i+most_frequent_diff(1)-2));
+for i=3:most_frequent_difference(1):(length(ordinals) - most_frequent_difference(1))
+    S(ii,:) = ordinals(i:(i+most_frequent_difference(1)-2));
     ii = ii + 1;
 end
 
 % count number of occurences of letters on i-th position in sentence.
 % Choose the most frequent one.
-corrupted = 0; % is it possible to reconstruct a letter from each of the sentences?
 sentence = [];
 for i=1:size(S,2) % traverse all columns
     column = S(:,i);
-    sorted = sortrows([(0:255)', histc(column, 0:0255)], -2);
-    if(sorted(1,2) < (size(S,2) / 2)) % number of most frequent letter is 
+    sorted = sortrows([(0:255)', histc(column, 0:255)], -2);
+%    if(sorted(1,2) < (size(S,1) / 2)) % number of most frequent letter is 
         % not higher than half of the number of sentences
-        corrupted = 1;
-    end
+%        corrupted = 1;
+%        error('Message cannot be correctly retrieved. Letter in the sentence does not occur in the other sencentes in required number.');
+%    end
     sentence = [sentence sorted(1,1)];
 end
 decoded = native2unicode(sentence, 'cp1250');
 end
 
-
+% Notes
 % encoded = encode(e,'Toto je super tajná zpráva v českém kódování.')
 % imwrite(uint8(encoded), 'erika_message.bmp', 'BMP')
 % r = rand(256,256)<0.001 matice % vygeneruje matici s 0 a 1, jednicek bude

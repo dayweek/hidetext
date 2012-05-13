@@ -4,7 +4,7 @@ block_size = [4 4];
 
 msg_int = [0 255 unicode2native(msg, 'cp1250')];
     
-% vypočítání koeficientů transformačních matic
+% vypocitani koeficientu matic
 a = 1/2;
 b = sqrt(a)*cos(pi/8);
 c = sqrt(a)*cos(3*pi/8);
@@ -23,14 +23,15 @@ size_x = size(Input,2);
 size_y = size(Input,1);
 
 % number of blocks
-% TODO: necelé bloky
-count_x = ceil(size_x / block_size(1));
-count_y = ceil(size_y / block_size(2));
+count_x = floor(size_x / block_size(1));
+count_y = floor(size_y / block_size(2));
 block_count = count_x * count_y;
 
 if block_count < length(msg_int) * 2
-    disp('Obrázek není dostatečně velký pro uložení celého textu.');
+    error('Size of the image is not sufficient to store the whole message.');
 end
+
+char_pos = 0;
 
 for x_th=1:count_x       
     for y_th=1:count_y
@@ -47,19 +48,19 @@ for x_th=1:count_x
         
         zz = zigzag(dct_block);
         
-        block_nr = (x_th - 1) * count_x + (y_th-1);
-        char_pos = floor(block_nr/2);
+        block_nr = (x_th - 1) * count_x + (y_th - 1);
+        %char_pos = floor(block_nr/2);
         is_lower_bit = mod(block_nr, 2);
         
-        while char_pos + 1 > length(msg_int)
-            char_pos = char_pos - length(msg_int);
-        end
+        char_pos = mod(char_pos, length(msg_int));
         
         byte = dec2bin(msg_int(char_pos + 1), 8);
+
         if ~is_lower_bit
             msg = (byte(1:4) - 48) * 3;
         else
             msg = (byte(5:8) - 48) * 3;
+            char_pos = char_pos + 1;
         end
         
         zz(end-3:end) = msg;
