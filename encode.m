@@ -1,10 +1,17 @@
 function Output = encode(Input, msg)
+%
+% - Input: string to 8-bit BMP file
+% - msg: text to be encoded
+% - Output: image with endoded text
+% if the image is too small to encode whole text, an error is printed
+Input = double(imread(Input));
 
 block_size = [4 4];
 
+% array with char codes
 msg_int = [0 255 unicode2native(msg, 'cp1250')];
     
-% vypocitani koeficientu matic
+% compute paameters for matrices B and Q for IntDCT
 a = 1/2;
 b = sqrt(a)*cos(pi/8);
 c = sqrt(a)*cos(3*pi/8);
@@ -14,9 +21,6 @@ aa = a*a;
 ab = a*b;
 bb = b*b;
 Q = [aa ab aa ab; ab bb ab bb; aa ab aa ab; ab bb ab bb];
-
-% convert image into matrix
-Input = double(Input);
 
 % image size
 size_x = size(Input,2);
@@ -31,6 +35,7 @@ if block_count < length(msg_int) * 2
     error('Size of the image is not sufficient to store the whole message.');
 end
 
+% position of current character
 char_pos = 0;
 
 for x_th=1:count_x       
@@ -49,11 +54,14 @@ for x_th=1:count_x
         zz = zigzag(dct_block);
         
         block_nr = (x_th - 1) * count_x + (y_th - 1);
-        %char_pos = floor(block_nr/2);
+
+		% whether we encode lower bit
         is_lower_bit = mod(block_nr, 2);
         
-        char_pos = mod(char_pos, length(msg_int));
+        % modify the position of current character according to length of message
+		char_pos = mod(char_pos, length(msg_int));
         
+		%get the binary representation
         byte = dec2bin(msg_int(char_pos + 1), 8);
 
         if ~is_lower_bit
@@ -63,15 +71,18 @@ for x_th=1:count_x
             char_pos = char_pos + 1;
         end
         
+		% write the message
         zz(end-3:end) = msg;
                 
-        quant = izigzag(zz, block_size(1), block_size(2));
-        current_block = round(B'*(quant .* Q)*B);
+        izz = izigzag(zz, block_size(1), block_size(2));
+        current_block = round(B'*(izz .* Q)*B);
         
 		% update the active area (window)
         Output(block_start_y:block_end_y, block_start_x:block_end_x) = current_block(:,:);
     end
 end
+
+imwrite(uint8(Output), Input, 'BMP')
 
 Output = dip_image(Output);
 
