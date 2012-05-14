@@ -1,18 +1,17 @@
-function Output = encode(InputFilename, OutputFilename, msg)
+function Output = encode(Input, OutputFilename, msg)
 %
 % - Input: string to 8-bit BMP file
 % - OutputFilename: string to 8-bit BMP file
 % - msg: text to be encoded
 % if the image is too small to encode whole text, an error is printed
-Input = double(imread(InputFilename));
-Output = Input;
+Input = double(imread(Input));
 
 block_size = [4 4];
 
 % array with char codes
 msg_int = [0 255 unicode2native(msg, 'cp1250')];
     
-% compute parameters for matrices B and Q for IntDCT
+% compute paameters for matrices B and Q for IntDCT
 a = 1/2;
 b = sqrt(a)*cos(pi/8);
 c = sqrt(a)*cos(3*pi/8);
@@ -56,18 +55,16 @@ for x_th=1:count_x
         
         block_nr = (x_th - 1) * count_x + (y_th - 1);
 
-		% whether we encode lower half of byte
-        is_lower_half = mod(block_nr, 2);
+		% whether we encode lower bit
+        is_lower_bit = mod(block_nr, 2);
         
         % modify the position of current character according to length of message
 		char_pos = mod(char_pos, length(msg_int));
         
-		% get the binary representation
+		%get the binary representation
         byte = dec2bin(msg_int(char_pos + 1), 8);
 
-        % binary representation of character '0' is 48 and of '1' is 49
-        % if we subtract value 48 we'll get zeros and ones
-        if ~is_lower_half
+        if ~is_lower_bit
             msg = (byte(1:4) - 48) * 3;
         else
             msg = (byte(5:8) - 48) * 3;
@@ -85,7 +82,7 @@ for x_th=1:count_x
     end
 end
 
-imwrite(uint8(Output), OutputFilename, 'BMP')
+imwrite(uint8(Output), Output, 'BMP')
 
 Output = dip_image(Output);
 
